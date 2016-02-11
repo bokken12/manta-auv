@@ -9,7 +9,7 @@ import math
 
 class Surge_pd:
     def __init__(self):
-        self.K_p = 50
+        self.K_p = 30
         self.K_d = 13
         self.dt = 0.1
         self.max = 20
@@ -79,7 +79,7 @@ class Surge_pd:
         if self.armed:
             surge_input = Wrench()
             #collected = math.sqrt(surge*surge + sway*sway)
-            error = self.surge_goal+self.start_surge+surge
+            error = self.surge_goal+surge
             
             surge_input.force.x = self.get_surge_input(error)
             self.surge_pub.publish(surge_input)
@@ -87,7 +87,7 @@ class Surge_pd:
                 self.ready = True
             else:
                 self.ready = False
-                print(error)
+                #print(error)
 
     def main(self):
         r = rospy.Rate(1)

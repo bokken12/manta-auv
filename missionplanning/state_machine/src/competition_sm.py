@@ -224,12 +224,14 @@ def odom_callback(msg):
     global current_roll
     global current_pitch
     global current_yaw
-    current_surge = msg.pose.pose.position.x
-    curreny_sway = msg.pose.pose.position.y
+    #current_surge = msg.pose.pose.position.x
+    #curreny_sway = msg.pose.pose.position.y
     curreny_heave = msg.pose.pose.position.z
     orientation_q = msg.pose.pose.orientation
     orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
     (current_roll, current_pitch, current_yaw) = euler_from_quaternion(orientation_list)
+    current_surge = msg.pose.pose.position.x*math.cos(current_yaw) + msg.pose.pose.position.y*math.sin(current_yaw)
+    current_sway = -msg.pose.pose.position.x*math.sin(current_yaw) + msg.pose.pose.position.y*math.cos(current_yaw)
 
 def request_preempt():
     global mission_in_progress
@@ -278,6 +280,9 @@ class Cancel(smach.State):
         self.cam_disarm_pub_ = cam_disarm_pub_
         self.reset_merger_pub = rospy.Publisher('/reset_merger', Bool, queue_size=1)
         self.stop_yaw_pub = rospy.Publisher('/yaw_arm', Bool, queue_size=1)
+        self.surge_arm_pub_ = rospy.Publisher('/surge_arm', Bool, queue_size=1)
+        self.sway_arm_pub_ = rospy.Publisher('/sway_arm', Bool, queue_size=1)
+
 
     def execute(self, userdata):
         #Kill all nodes
@@ -293,7 +298,8 @@ class Cancel(smach.State):
             (False),
             (False)
         ]
-
+        self.surge_arm_pub_.publish(False)
+        self.sway_arm_pub_.publish(False)
         self.mode_pub_.publish(mode_msg)
         global mission_in_progress
         mission_in_progress = False
@@ -320,7 +326,7 @@ class Dive(smach.State):
             return 'preempted'
 
         if self.ac_handler.depth_hold_ac.get_state() != 1:
-            goal = DepthHoldGoal(depth = -0.0)
+            goal = DepthHoldGoal(depth = -0.8)
             self.ac_handler.depth_hold_ac.send_goal(goal)
             self.cam_arm_pub_.publish('Start')
             self.yaw_arm_pub.publish(True)
@@ -362,19 +368,29 @@ class SearchGate(smach.State):
         self.sway_msg = Float64()
         self.sway_pub_ = rospy.Publisher('/sway_goal', Float64, queue_size=1)
         self.first = True
+        self.surge_pub = rospy.Publisher('/surge_input', Wrench, queue_size=1)
+        self.sway_pub = rospy.Publisher('/sway_input', Wrench, queue_size=1)
+
 
     def execute(self, userdata):
         if request_preempt():
             return 'preempted'
         if self.first:
-            self.surge_arm_pub_.publish(True)
-            self.sway_arm_pub_.publish(True)
-            self.surge_msg.data = 0
-            self.surge_pub_.publish(self.surge_msg)
-            self.sway_msg.data = 0
-            self.sway_pub_.publish(self.sway_msg)
-            self.first = False
+            global current_yaw
+            self.yaw_goal_msg.data = current_yaw*180/math.pi
+            self.surge_arm_pub_.publish(False)
+            self.sway_arm_pub_.publish(False)
+            surge_input = Wrench()
+            sway_input = Wrench()
+            self.rate.sleep()
+            self.sway_pub.publish(sway_input)
+            self.surge_pub.publish(surge_input)
 
+            #self.surge_msg.data = 0
+            #self.surge_pub_.publish(self.surge_msg)
+            #self.sway_msg.data = 0
+            #self.sway_pub_.publish(self.sway_msg)
+            self.first = False
         global gate_conf
         #gate_conf = self.cam_class.get_conf() 
         if gate_conf == 1:
@@ -408,6 +424,7 @@ class CenterGate(smach.State):
         self.yaw_goal_pub_ = rospy.Publisher('/yaw_goal', Float64, queue_size=1)
         self.yaw_goal_msg = Float64()
         self.rate = rospy.Rate(10)
+        self.rate_long = rospy.Rate(0.5)
         self.cam_class = cam_class
         self.K_p = 10
         self.K_d = 3
@@ -416,6 +433,18 @@ class CenterGate(smach.State):
         self.min = -40
         self.first = True
         self.pre_error = 0
+
+        self.surge_msg = Float64()
+        self.sway_msg = Float64()
+        self.surge_arm_pub_ = rospy.Publisher('/surge_arm', Bool, queue_size=1)
+        self.surge_pub_ = rospy.Publisher('/surge_goal', Float64, queue_size=1)
+        self.sway_arm_pub_ = rospy.Publisher('/sway_arm', Bool, queue_size=1)
+        self.sway_pub_ = rospy.Publisher('/sway_goal', Float64, queue_size=1)
+        self.surge_ready_sub = rospy.Subscriber('/surge_ready', Bool, self.surge_ready_callback)
+        self.surge_ready = True
+
+        self.first_surge = True
+
 
     def get_center_input(self, error):
         P = self.K_p*error
@@ -432,6 +461,8 @@ class CenterGate(smach.State):
 
         return sum
 
+    def surge_ready_callback(self, msg):
+        self.surge_ready = msg.data
 
     def execute(self,userdata):
         if request_preempt():
@@ -445,10 +476,10 @@ class CenterGate(smach.State):
         if self.first:
             global current_yaw
             self.first = False
-            self.yaw_goal_msg.data = current_yaw
-        if gate_conf == 1:
+            self.yaw_goal_msg.data = current_yaw*180/math.pi
+        if gate_conf > 0.4:
             #global current_yaw
-            error = -gate_midpoint[0] + image_width/2 
+            error = gate_midpoint[0] - image_width/2 
             #  Gaa mot riktig side
             #if error > -50 and error < 50:# Maa velge fornuftige verdier
 	#	self.yaw_goal_msg.data = (current_yaw*180)/math.pi
@@ -459,16 +490,30 @@ class CenterGate(smach.State):
             #self.yaw_goal_pub_.publish(self.yaw_goal_msg)
             #self.rate.sleep()
             if error > 50:
-                self.yaw_goal_msg.data += 0.5
+                self.yaw_goal_msg.data += 0.1
             elif error < -50:
-                self.yaw_goal_msg.data -= 0.5
+                self.yaw_goal_msg.data -= 0.1
             else:
+                if(self.first_surge):
+                    step_length = 4
+                    global current_yaw
+                    global current_surge
+                    self.surge_arm_pub_.publish(True)
+                    self.surge_msg = step_length  - current_surge
+                    self.surge_pub_.publish(self.surge_msg)
+                    self.first_surge = False
+                    self.surge_ready = False
+                    self.rate_long.sleep()
+                elif((self.first_surge == False) and (self.surge_ready)):
+                    return 'centred'
                 return "continue"
             self.yaw_goal_pub_.publish(self.yaw_goal_msg)
-
+            self.rate.sleep()
             return "continue"
         else:
-            return "lost"
+            if((self.first_surge == False) and (self.surge_ready)):
+                return 'centred'
+            return "continue"
 
 class MovetoGate(smach.State):
     def __init__(self, ac_handler, cam_class):
@@ -558,9 +603,10 @@ class gate_trick(smach.State):
         self.surge_arm_pub_ = rospy.Publisher('/surge_arm', Bool, queue_size=1)
         self.surge_pub_ = rospy.Publisher('/surge_goal', Float64, queue_size=1)
         self.sway_arm_pub_ = rospy.Publisher('/sway_arm', Bool, queue_size=1)
-
+        self.surge_pub = rospy.Publisher('/surge_input', Wrench, queue_size=1)
+        self.sway_pub = rospy.Publisher('/sway_input', Wrench, queue_size=1)
         self.sway_pub_ = rospy.Publisher('/sway_goal', Float64, queue_size=1)
-
+        self.first = False
 
         self.first_sent = False
         self.second_sent = False
@@ -572,7 +618,9 @@ class gate_trick(smach.State):
         self.eight_sent = False
         self.start_yaw = 0
         self.total = 0
-        self.rate = rospy.Rate(0.2)
+        self.goal = 0
+        self.rate = rospy.Rate(10)
+        self.rate_long = rospy.Rate(0.1)
     def execute(self,userdata):
         if request_preempt():
             self.first_sent = False
@@ -587,64 +635,111 @@ class gate_trick(smach.State):
 
         global current_surge
         global current_sway
+        global curreny_yaw
         current_sway = 0.0
+        if not(self.first):
+            self.start_yaw = current_yaw*180/math.pi
+            self.first = True
+            self.goal = self.start_yaw + 720-90
+            self.yaw_goal_msg.data = self.start_yaw
 
-        if not (self.first_sent):
-            global current_yaw
-            self.start_yaw = current_yaw
-            self.surge_msg.data = current_surge
+            self.surge_arm_pub_.publish(False)
+            self.sway_arm_pub_.publish(False)
+            surge_input = Wrench()
+            sway_input = Wrench()
+            self.rate.sleep()
+            self.sway_pub.publish(sway_input)
+            self.surge_pub.publish(surge_input)
+            self.surge_msg.data = 0 + current_surge
             self.surge_pub_.publish(self.surge_msg)
-            self.sway_msg.data = current_sway
+            self.sway_msg.data = 0 + current_sway
             self.sway_pub_.publish(self.sway_msg)
-            self.yaw_goal_msg.data = 90 + self.start_yaw
-            self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+            
+
+        self.yaw_goal_msg.data += 3
+       # if self.yaw_goal_msg > 359:
+       #     self.yaw_goal_msg.data = 0
+        if self.yaw_goal_msg.data > 360:
+            self.yaw_goal_msg.data -= 360
+        self.yaw_goal_pub_.publish(self.yaw_goal_msg)
+        self.rate.sleep()
+        if self.total > self.goal:
+            self.surge_arm_pub_.publish(True)
+            self.sway_arm_pub_.publish(False)
+            self.surge_msg.data = 5 - current_surge
+            self.rate.sleep()
+            self.surge_pub_.publish(self.surge_msg)
+            self.rate_long.sleep()
+            return 'trick_done'
+        self.total += 3
+        return 'continue'
+
+
+
+        
+
+        '''
+        if not (self.first_sent):
+            self.start_yaw = current_yaw*180/math.pi
+            #self.surge_msg.data = current_surge
+            #self.surge_pub_.publish(self.surge_msg)
+            #self.sway_msg.data = current_sway
+            #self.sway_pub_.publish(self.sway_msg)
+            self.yaw_goal_msg.data = 270  + self.start_yaw
+            self.yaw_goal_pub_.publish(self.yaw_goal_msg)
             #self.which_point += 1
             self.first_sent = True
             self.rate.sleep()
-            self.surge_ready = False
-            self.sway_ready = False
+            #self.surge_ready = False
+            #self.sway_ready = False
             return 'continue'
-        if not(self.second_sent):
-            self.surge_msg.data = current_surge
-            self.surge_pub_.publish(self.surge_msg)
-            self.sway_msg.data = current_sway
-            self.sway_pub_.publish(self.sway_msg)
-            self.yaw_goal_msg.data = 180 + self.start_yaw
-            self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+        if not(self.second_sent) and current_yaw*180/math.pi > self.yaw_goal_msg.data - 10.0:
+            #self.surge_msg.data = current_surge
+            #self.surge_pub_.publish(self.surge_msg)
+            #self.sway_msg.data = current_sway
+            #self.sway_pub_.publish(self.sway_msg)
+            self.yaw_goal_msg.data =  90 + self.start_yaw
+            self.yaw_goal_pub_.publish(self.yaw_goal_msg)
             #self.which_point += 1
             self.second_sent = True
             self.rate.sleep()
-            self.surge_ready = False
-            self.sway_ready = False
+            #self.surge_ready = False
+            #self.sway_ready = False
             return 'continue'
+        if self.second_sent and current_yaw*180/math.pi > self.yaw_goal_msg.data - 10.0: 
+            return 'trick_done'
+        return 'continue'
+'''
+'''
         if not(self.third_sent):
-            self.surge_msg.data = current_surge
-            self.surge_pub_.publish(self.surge_msg)
-            self.sway_msg.data = current_sway
+            #self.surge_msg.data = current_surge
+            #self.surge_pub_.publish(self.surge_msg)
+            #self.sway_msg.data = current_sway
             self.sway_pub_.publish(self.sway_msg)
-            self.yaw_goal_msg.data = 270 + self.start_yaw
+            self.yaw_goal_msg.data = -90 + self.start_yaw
             self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
             #self.which_point += 1
             self.third_sent = True
             self.rate.sleep()
-            self.surge_ready = False
-            self.sway_ready = False
+            #self.surge_ready = False
+            #self.sway_ready = False
             return 'continue'
 
         if not(self.fourth_sent):
-            self.surge_msg.data = current_surge
-            self.surge_pub_.publish(self.surge_msg)
-            self.sway_msg.data = current_sway
-            self.sway_pub_.publish(self.sway_msg)
+            #self.surge_msg.data = current_surge
+            #self.surge_pub_.publish(self.surge_msg)
+            #self.sway_msg.data = current_sway
+            #self.sway_pub_.publish(self.sway_msg)
             self.yaw_goal_msg.data = self.start_yaw
             self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
             #self.which_point += 1
             self.fourth_sent = True
             self.rate.sleep
-            self.surge_ready = False
-            self.sway_ready = False
+            #self.surge_ready = False
+            #self.sway_ready = False
             return 'trick_done'
-        '''
+        return 'continue'
+       
         if not(self.fifth_sent):
             self.surge_msg.data = current_surge
             self.surge_pub_.publish(self.surge_msg)
@@ -718,7 +813,62 @@ class gate_trick(smach.State):
             return 'trick_done'
         return 'continue'
 '''
-	
+
+
+
+class start_point(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=['reached','continue','preempted'])
+        self.yaw_goal_pub_ = rospy.Publisher('/yaw_goal', Float64, queue_size=1)
+        self.yaw_goal_msg = Float64()
+
+        self.surge_msg = Float64()
+        self.sway_msg = Float64()
+        self.surge_arm_pub_ = rospy.Publisher('/surge_arm', Bool, queue_size=1)
+        self.surge_pub_ = rospy.Publisher('/surge_goal', Float64, queue_size=1)
+        self.sway_arm_pub_ = rospy.Publisher('/sway_arm', Bool, queue_size=1)
+
+        self.sway_pub_ = rospy.Publisher('/sway_goal', Float64, queue_size=1)
+        self.surge_ready_sub = rospy.Subscriber('/surge_ready', Bool, self.surge_ready_callback)
+
+        self.surge_ready = False
+
+        self.first = True
+
+        self.rate = rospy.Rate(10)
+
+    def surge_ready_callback(self, msg):
+        self.surge_ready = msg.data
+
+    def execute(self,userdata):
+        if request_preempt():
+            return 'preempted'
+        global current_surge
+        global current_sway
+        global current_yaw
+
+        if(self.first):
+            #Set point
+            global current_surge
+            global current_sway
+            self.surge_msg.data = 10.0 + current_surge
+            self.sway_msg.data = 0.0 + current_sway
+            self.yaw_goal_msg.data = 65
+            self.surge_arm_pub_.publish(True)
+            self.sway_arm_pub_.publish(True)
+            self.yaw_goal_pub_.publish(self.yaw_goal_msg)
+            self.surge_pub_.publish(self.surge_msg)
+            self.sway_pub_.publish(self.sway_msg) 
+            self.first = False
+            self.surge_ready = False
+
+        if((self.first == False) and (self.surge_ready)):
+            return 'reached'
+        self.rate.sleep()
+        return 'continue'
+
+'''
+
 class through_gate(smach.State):
     def __init__(self, ac_handler):
         smach.State.__init__(self, outcomes=['gate_passed','continue', 'preempted'])
@@ -751,7 +901,7 @@ class through_gate(smach.State):
 	
         
 
-'''
+
 class searchPathmarker(smach.State):
     def __init__(self, ac_handler, waypoint_client, arm_pub_, mode_pub_, cam_disarm_pub_):
         smach.State.__init__(self, outcomes=['found','continiue', 'preempted'])
@@ -844,22 +994,24 @@ def main():
     sis = smach_ros.IntrospectionServer('Qualification_run_server', sm, '/SM_ROOT')
     sis.start()
 
-
     with sm:
         smach.StateMachine.add('Idle', Idle(arm_pub_, mode_pub_),
                                 transitions={'doing':'Dive', 'waiting':'Idle'})
         smach.StateMachine.add('Cancel', Cancel(ac_handler, waypoint_client, arm_pub_, mode_pub_, cam_disarm_pub_),
                                 transitions={'canceld':'Idle'})
         smach.StateMachine.add('Dive', Dive(ac_handler, cam_arm_pub_),
-                                transitions={'submerged':'SearchGate', 'continue':'Dive','preempted':'Cancel'})
+                                transitions={'submerged':'start_point', 'continue':'Dive','preempted':'Cancel'})
         smach.StateMachine.add('SearchGate', SearchGate(ac_handler, cam_class),
                                 transitions={'found':'CenterGate', 'continue':'SearchGate', 'preempted':'Cancel'})
         smach.StateMachine.add('CenterGate', CenterGate(ac_handler, cam_class),
-                                transitions={'lost':'SearchGate','centred':'MoveGate', 'continue':'CenterGate', 'preempted':'Cancel'})
+                                transitions={'lost':'SearchGate','centred':'Trick', 'continue':'CenterGate', 'preempted':'Cancel'})
         smach.StateMachine.add('MoveGate', MovetoGate(ac_handler, cam_class),
                                 transitions={'gate_reached':'Trick','continue':'MoveGate','preempted':'Cancel'})
 	smach.StateMachine.add('Trick', gate_trick(ac_handler),
 			transitions={'trick_done':'Cancel', 'continue':'Trick', 'preempted':'Cancel'})
+
+        smach.StateMachine.add('start_point', start_point(),
+                        transitions={'reached':'SearchGate', 'continue':'start_point', 'preempted':'Cancel'})
 
     outcome = sm.execute()
     rospy.spin()
