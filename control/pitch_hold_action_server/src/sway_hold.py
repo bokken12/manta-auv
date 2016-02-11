@@ -9,11 +9,11 @@ import math
 
 class Sway_pd:
     def __init__(self):
-        self.K_p = 10
-        self.K_d = 3
+        self.K_p = 50
+        self.K_d = 13
         self.dt = 0.1
-        self.max = 10
-        self.min = -10
+        self.max = 20
+        self.min = -20
 
         self.pre_error = 0
         self.sway_goal = 0.0
@@ -26,6 +26,9 @@ class Sway_pd:
         self.sway_arm_sub = rospy.Subscriber('/sway_arm', Bool, self.sway_arm)
         self.sway_ready_pub = rospy.Publisher('/sway_ready', Bool, queue_size=1)
         self.ready = False
+        self.start_sway = 0
+        self.first_after_goal = False
+
     def sway_arm(self, msg):
         if msg.data:
             self.armed = True
@@ -36,6 +39,7 @@ class Sway_pd:
         #print(msg)
         self.sway_goal = msg.data
         self.ready = False
+        self.first_after_goal = True
 
     def get_sway_input(self, error):
         P = self.K_p*error
@@ -62,8 +66,16 @@ class Sway_pd:
         #print('roll: ', roll)
         #print('pitch: ', pitch)
         #print('sway: ', sway)
-        sway = msg.pose.pose.position.x
-        sway = msg.pose.pose.position.y
+        orientation_q = msg.pose.pose.orientation
+        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        (roll, pitch, yaw) = euler_from_quaternion(orientation_list)
+
+        surge = msg.pose.pose.position.x*math.cos(yaw) + msg.pose.pose.position.y*math.sin(yaw)
+        sway = -msg.pose.pose.position.x*math.sin(yaw) + msg.pose.pose.position.y*math.cos(yaw)
+
+        if self.first_after_goal:
+            self.start_sway = sway
+            self.first_after_goal = False
         if self.armed:
             sway_input = Wrench()
             #collected = math.sqrt(sway*sway + sway*sway)

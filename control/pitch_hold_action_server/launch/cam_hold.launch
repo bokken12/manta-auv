@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <launch>
-    <node
+    <!--node
     name="cam_controller"
     pkg="pitch_hold_action_server"
     type="cam_hold.py"
     args=""
     output="screen">
 
-    </node>
+    </node-->
     <include file="$(find pitch_hold_action_server)/launch/yaw_hold.launch"/>
     <include file="$(find pitch_hold_action_server)/launch/surge_hold.launch"/>
     <include file="$(find pitch_hold_action_server)/launch/sway_hold.launch"/>

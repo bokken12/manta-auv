@@ -35,12 +35,12 @@ class Yaw_pd:
 
     def set_yaw_goal(self, msg):
         #print(msg)
-       
+        '''
         if(msg.data > 179 ):
             msg.data -= 360
         elif(msg.data < -179):
             msg.data += 360
-        
+        '''
         self.yaw_goal = self.pi*(msg.data)/180
 
     def get_yaw_input(self, error):
@@ -70,12 +70,10 @@ class Yaw_pd:
 
         yaw_input = Wrench()
         error = yaw-self.yaw_goal
-       
-        if(error >self.pi):
-            error = error - 2*self.pi
-        elif(error<-self.pi):
-            error = 2*self.pi + error 
-  
+        if(error > 2*self.pi):
+            error -= 2*self.pi
+        elif(error < -2*self.pi):
+            error += 2*self.pi
         yaw_input.torque.z = self.get_yaw_input(error)
         if self.armed:
             self.yaw_pub.publish(yaw_input)

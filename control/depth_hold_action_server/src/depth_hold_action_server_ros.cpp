@@ -20,7 +20,7 @@ DepthHoldAction::DepthHoldAction(std::string name) :
         double max = 40.0;
         double min = -40.0;
         double K_p = 100;
-        double K_d = 1;
+        double K_d = 10;
         double K_i = 0.00;
 
         height.reset(new DHpid(dt, max, min, K_p, K_d, K_i));

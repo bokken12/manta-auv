@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<launch>
+    <node
+    name="competition_sm"
+    pkg="state_machine"
+    type="competition_sm.py"
+    args=""
+    output="screen">
+
+    </node>
+    <include file="$(find vortex)/launch/qualification_run.launch"/>
+    <include file="$(find mission_trigger)/launch/mission_trigger.launch"/>
+</launch>
+

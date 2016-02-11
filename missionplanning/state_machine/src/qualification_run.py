@@ -293,7 +293,7 @@ class Dive(smach.State):
             return 'preempted'
 
         if self.ac_handler.depth_hold_ac.get_state() != 1:
-            goal = DepthHoldGoal(depth = -0.5)
+            goal = DepthHoldGoal(depth = -0.3)
             self.ac_handler.depth_hold_ac.send_goal(goal)
             self.cam_arm_pub_.publish('Start')
             self.yaw_arm_pub.publish(True)
@@ -448,7 +448,7 @@ class Move(smach.State):
         if(self.surge_ready):
             #self.which_point += 1
             if not (self.first_sent):
-                self.surge_msg.data = 12.0
+                self.surge_msg.data = 10.0
                 self.surge_pub_.publish(self.surge_msg)
                 self.sway_msg.data = 0.0
                 self.sway_pub_.publish(self.sway_msg)
@@ -463,9 +463,9 @@ class Move(smach.State):
 
                 return 'continue'
             if not(self.second_sent):
-                self.surge_msg.data = 14.0
+                self.surge_msg.data = 10.0
                 self.surge_pub_.publish(self.surge_msg)
-                self.sway_msg.data = 1.0
+                self.sway_msg.data = 5.0
                 self.sway_pub_.publish(self.sway_msg)
                 self.yaw_goal_msg.data = 0
                 self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
@@ -477,9 +477,9 @@ class Move(smach.State):
 
                 return 'continue'
             if not(self.third_sent):
-                self.surge_msg.data = 15.0
+                self.surge_msg.data = 20.0
                 self.surge_pub_.publish(self.surge_msg)
-                self.sway_msg.data = 0.0
+                self.sway_msg.data = 5.0
                 self.sway_pub_.publish(self.sway_msg)
                 self.yaw_goal_msg.data = 0
                 self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
@@ -491,9 +491,9 @@ class Move(smach.State):
                 return 'continue'
 
             if not(self.fourth_sent):
-                self.surge_msg.data = 14.0
+                self.surge_msg.data = 20.0
                 self.surge_pub_.publish(self.surge_msg)
-                self.sway_msg.data = -1.0
+                self.sway_msg.data = 0.0
                 self.sway_pub_.publish(self.sway_msg)
                 self.yaw_goal_msg.data = 0
                 self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
@@ -505,7 +505,7 @@ class Move(smach.State):
                 return 'continue'
 
             if not(self.fifth_sent):
-                self.surge_msg.data = 12.0
+                self.surge_msg.data = 30.0
                 self.surge_pub_.publish(self.surge_msg)
                 self.sway_msg.data = 0.0
                 self.sway_pub_.publish(self.sway_msg)
@@ -519,9 +519,9 @@ class Move(smach.State):
                 return 'continue'
 
             if not(self.sixth_sent):
-                self.surge_msg.data = 9.0
+                self.surge_msg.data = 40.0
                 self.surge_pub_.publish(self.surge_msg)
-                self.sway_msg.data = 0.0
+                self.sway_msg.data = 10.0
                 self.sway_pub_.publish(self.sway_msg)
                 self.yaw_goal_msg.data = 0
                 self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
@@ -533,9 +533,9 @@ class Move(smach.State):
                 return 'continue'
 
             if not(self.seventh_sent):
-                self.surge_msg.data = 0.0
+                self.surge_msg.data = 40.0
                 self.surge_pub_.publish(self.surge_msg)
-                self.sway_msg.data = 0.0
+                self.sway_msg.data = 20.0
                 self.sway_pub_.publish(self.sway_msg)
                 self.yaw_goal_msg.data = 0
                 self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
