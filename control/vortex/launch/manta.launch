@@ -19,6 +19,6 @@
   <node pkg="vortex_allocator"   type="node"                       name="allocator"          output="screen"/>
   <!-- node pkg="vortex_estimator"   type="node"                       name="estimator"          output="screen"/-->
 
-  <node pkg="dp_controller" type="node" name="controller" output="screen"/>
+  <!--node pkg="dp_controller" type="node" name="dp_controller" output="screen"/-->
 
 </launch>
