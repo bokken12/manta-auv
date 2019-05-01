@@ -18,12 +18,37 @@ from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 from geometry_msgs.msg import Pose, Point, Quaternion
 from tf.transformations import quaternion_from_euler
 from math import radians, pi
+from vortex_msgs.msg import CameraObjectInfo
+#from vortex_msgs import Bouy_camera
+
+#fiks at cameranode er tilgjengelig for state machine
+#subscribe paa riktig topics saa man kan se om gate er funnet
+'''
+class subscribe_to_camera():
+    #gir ut bredde, lengde og midpoints. confidence: 0=ser ikke, 1=ser, 0.5=forbi
+    def __init_(self):
+        rospy.Subscriber('/gate_midpoint', CameraObjectInfo, self.callback, queue_size=1)
+        self.conf = 0
+        self.midpoints = (0,0)
+        self.width = 0
+
+    def get_conf(self):
+        return self.conf
+
+    def callback(self, msg):
+        self.conf = msg.confidence
+        #self.midpoints = (msg.sub_gate.pos_x, msg.sub_gate.pos_y)
+        #self.width = msg.sub_gate.frame_width
+'''
+
+def gate_conf_callback(msg):
+    global gate_conf
+    gate_conf = msg.confidence
+    print(gate_conf)
 
 class WaypointClient():
 
     def __init__(self):
-
-
         #rospy.init_node('waypoint_client')
 
         # waypoint goal count
@@ -46,10 +71,10 @@ class WaypointClient():
 
         # Append each of the four waypoints to the list. Each waypoint
         # is a pose consisting of a position and orientation in the map frame
-        self.waypoints.append(Pose(Point(20.0, 2.0, -1.0), quaternions[0]))
-        self.waypoints.append(Pose(Point(21.5, 0.0, -1.0), quaternions[1]))
-        self.waypoints.append(Pose(Point(20.0, -2.0, -1.0), quaternions[2]))
-        self.waypoints.append(Pose(Point(-10.0, 0.0, -1.0), quaternions[3]))
+        self.waypoints.append(Pose(Point(35.0, 2.0, -1.0), quaternions[0]))
+        self.waypoints.append(Pose(Point(36.5, 0.0, -1.0), quaternions[1]))
+        self.waypoints.append(Pose(Point(35.0, -2.0, -1.0), quaternions[2]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -1.0), quaternions[3]))
 
         #Create action client
         self.client = actionlib.SimpleActionClient('move_base',MoveBaseAction)
@@ -244,12 +269,16 @@ class Search(smach.State):
         self.counter = 0
         self.ac_handler = ac_handler
         self.first = True
+        '''
+        self.camera_sub = camera_sub
+        self.gate_found = self.camera_sub.get_conf()
+        '''
 
     def execute(self, userdata):
         if request_preempt():
             return 'preempted'
         #Do findGateStuff here
-        gate_found = False
+        self.gate_found = False
         '''
         if self.ac_handler.dp_controller_ac.get_state() != 1:
             goal = MoveBaseGoal()
@@ -262,13 +291,11 @@ class Search(smach.State):
         if self.first:
             WaypointClient()
             self.first = False
-        #self.counter += 1
-        if(self.counter > 100):
-            gate_found = True
-
-        if gate_found:
+        global gate_conf
+        print(gate_conf)
+        if gate_conf == 1:
             return 'found'
-        else:
+        elif gate_conf == 0:
             return 'continue'
 
 
@@ -276,6 +303,9 @@ class Move(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['stop_state_machine' ,'move_finished','gate_lost', 'continue','preempted'])
         self.counter = 0
+        #self.camera = subscribe_to_camera()
+        self.gate_found = 1#self.camera.conf
+
 
     def execute(self, userdata):
         if request_preempt():
@@ -287,12 +317,14 @@ class Move(smach.State):
         if(self.counter > 100):
             gate_passed = True
 
-        if gate_passed:
+        elif self.gate_found == 0.5:
             return 'move_finished'
-        elif gate_lost:
+        elif self.gate_found == 0:
             return 'gate_lost'
         else:
             return 'continue'
+
+
 
 def main():
     #rospy.init_node('action_client_py')
@@ -302,11 +334,15 @@ def main():
     mission_in_progress = False
     global depth_hold_ready
     depth_hold_ready = False
+    global gate_conf
+    gate_conf = 0
 
     rospy.Subscriber("mission_trigger", Bool, mission_trigger_callback)
 
     rospy.Subscriber("depth_hold_action_server/feedback", DepthHoldActionFeedback, depth_hold_feedback_callback)
 
+    rospy.Subscriber('/gate_midpoint', CameraObjectInfo, gate_conf_callback, queue_size=1)
+    '''
     mode_pub_ = rospy.Publisher('/manta/mode', PropulsionCommand, queue_size=1)
     mode_msg = PropulsionCommand()
 
@@ -322,7 +358,7 @@ def main():
     rate = rospy.Rate(1)
     rate.sleep()
     mode_pub_.publish(mode_msg)
-
+    '''
     ac_handler = AC_handler()
 
     sm = smach.StateMachine(outcomes = ['Done'])
