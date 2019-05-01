@@ -30,7 +30,7 @@ Controller::Controller(ros::NodeHandle nh) : m_nh(nh), m_frequency(10)
   m_debug_pub   = m_nh.advertise<vortex_msgs::Debug>("debug/controlstates", 10);
 
   // Initial control mode
-  m_control_mode = ControlModes::OPEN_LOOP;
+  m_control_mode = ControlModes::POSE_HOLD;
 
   // Launch file specifies manta.yaml as directory
   if (!m_nh.getParam("/controller/frequency", m_frequency))
