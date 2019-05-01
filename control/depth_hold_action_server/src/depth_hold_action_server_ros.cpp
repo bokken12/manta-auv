@@ -46,8 +46,12 @@ void DepthHoldAction::executeCB(const depth_hold_action_server::DepthHoldGoalCon
         {
             ROS_INFO("%s: Preempted", action_name_.c_str());
             // set the action state to preempted
+            feedback_.ready = false;
+            as_.publishFeedback(feedback_);
             as_.setPreempted();
             success = false;
+            dh_command.force.z = 0;
+            pub_.publish(dh_command);
             break;
         }
         dh_command.force.z = this->height->calculate();
@@ -72,7 +76,7 @@ void DepthHoldAction::stateEstimateCallback(const nav_msgs::Odometry &odometry_m
     feedback_.current_depth = odometry_msgs.pose.pose.position.z;
 
     double error = static_cast<double>(odometry_msgs.pose.pose.position.z)*(-1) - this->goal_depth;
-    double limit = 0.3;
+    double limit = 0.1;
     if( (error < limit) && (error > -1*limit) ){
         //std::cout <<"Error true: "<<  error << std::endl;
         feedback_.ready = true;
