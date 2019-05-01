@@ -9,4 +9,6 @@
     output="screen">
 
     </node>
+    <include file="$(find vortex)/launch/qualification_run.launch"/>
+    <include file="$(find pole_detect)/launch/gate_detect.launch"/>
 </launch>
