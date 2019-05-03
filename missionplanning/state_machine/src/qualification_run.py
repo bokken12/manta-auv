@@ -44,7 +44,7 @@ class subscribe_to_camera():
 def gate_conf_callback(msg):
     global gate_conf
     gate_conf = msg.confidence
-    print(gate_conf)
+    #print(gate_conf)
 
 class WaypointClient():
 
@@ -86,6 +86,8 @@ class WaypointClient():
             return
         rospy.loginfo("Connected to move base server")
         rospy.loginfo("Starting goals achievements ...")
+
+    def start(self):
         self.movebase_client()
 
 
@@ -164,7 +166,7 @@ class WaypointClient():
 
         # Send goal
         self.client.send_goal(goal, self.status_cb, self.active_cb, self.feedback_cb)
-        rospy.spin()
+        #rospy.spin()
 
 class AC_handler():
     def __init__(self):
@@ -179,6 +181,7 @@ class AC_handler():
     def cancel_all_goals(self):
         self.depth_hold_ac.cancel_all_goals()
         self.dp_controller_ac.cancel_all_goals()
+
 
 def mission_trigger_callback(trigger_signal):
     print('Received signal')
@@ -200,11 +203,13 @@ def request_preempt():
         return True
 
 class Idle(smach.State):
-    def __init__(self):
+    def __init__(self, arm_pub_, mode_pub_):
         smach.State.__init__(self, outcomes=['doing','waiting'])
         # subscribe to signal
         print('Init')
         self.rate = rospy.Rate(10)
+        self.arm_pub_ = arm_pub_
+        self.mode_pub_ = mode_pub_
 
     def execute(self, userdata):
         #print('Executing')
@@ -214,17 +219,34 @@ class Idle(smach.State):
             self.rate.sleep()
             return 'waiting'
         else:
+            self.arm_pub_.publish('ARM')
             print('Jumping')
             return 'doing'
 
 class Cancel(smach.State):
-    def __init__(self, ac_handler):
+    def __init__(self, ac_handler, waypoint_client, arm_pub_, mode_pub_):
         smach.State.__init__(self, outcomes=['canceld'])
         self.ac_handler = ac_handler
+        self.waypoint_client = waypoint_client
+        self.arm_pub_ = arm_pub_
+        self.mode_pub_ = mode_pub_
 
     def execute(self, userdata):
         #Kill all nodes
         self.ac_handler.cancel_all_goals()
+        self.waypoint_client.goal_cnt = 0
+        self.arm_pub_.publish('stop')
+        mode_msg = PropulsionCommand()
+        mode_msg.control_mode = [
+            (True),
+            (False),
+            (False),
+            (False),
+            (False),
+            (False)
+        ]
+
+        self.mode_pub_.publish(mode_msg)
         global mission_in_progress
         mission_in_progress = False
         return 'canceld'
@@ -263,11 +285,13 @@ class Dive(smach.State):
 
 
 class Search(smach.State):
-    def __init__(self, ac_handler):
+    def __init__(self, ac_handler, waypoint_client, mode_pub_):
         smach.State.__init__(self, outcomes=['found', 'continue','preempted'])
         #initialize stuff here
         self.counter = 0
         self.ac_handler = ac_handler
+        self.waypoint_client = waypoint_client
+        self.mode_pub_ = mode_pub_
         self.first = True
         '''
         self.camera_sub = camera_sub
@@ -289,10 +313,22 @@ class Search(smach.State):
             self.ac_handler.dp_controller_ac.send_goal(goal)
         '''
         if self.first:
-            WaypointClient()
             self.first = False
+
+        mode_msg = PropulsionCommand()
+        mode_msg.control_mode = [
+            (False),
+            (True),
+            (False),
+            (False),
+            (False),
+            (False)
+        ]
+
+        self.mode_pub_.publish(mode_msg)
+        self.waypoint_client.start()
         global gate_conf
-        print(gate_conf)
+        #print(gate_conf)
         if gate_conf == 1:
             return 'found'
         elif gate_conf == 0:
@@ -342,10 +378,13 @@ def main():
     rospy.Subscriber("depth_hold_action_server/feedback", DepthHoldActionFeedback, depth_hold_feedback_callback)
 
     rospy.Subscriber('/gate_midpoint', CameraObjectInfo, gate_conf_callback, queue_size=1)
-    '''
-    mode_pub_ = rospy.Publisher('/manta/mode', PropulsionCommand, queue_size=1)
-    mode_msg = PropulsionCommand()
 
+    arm_pub_ = rospy.Publisher('/mcu_arm', String, queue_size=1)
+
+
+    mode_pub_ = rospy.Publisher('/manta/mode', PropulsionCommand, queue_size=1)
+    '''
+    mode_msg = PropulsionCommand()
     mode_msg.control_mode = [
             (False),
             (True),
@@ -360,7 +399,7 @@ def main():
     mode_pub_.publish(mode_msg)
     '''
     ac_handler = AC_handler()
-
+    waypoint_client = WaypointClient()
     sm = smach.StateMachine(outcomes = ['Done'])
 
     sis = smach_ros.IntrospectionServer('Qualification_run_server', sm, '/SM_ROOT')
@@ -368,13 +407,13 @@ def main():
 
 
     with sm:
-        smach.StateMachine.add('Idle', Idle(),
+        smach.StateMachine.add('Idle', Idle(arm_pub_, mode_pub_),
                                 transitions={'doing':'Dive', 'waiting':'Idle'})
-        smach.StateMachine.add('Cancel', Cancel(ac_handler),
+        smach.StateMachine.add('Cancel', Cancel(ac_handler, waypoint_client, arm_pub_, mode_pub_),
                                 transitions={'canceld':'Idle'})
         smach.StateMachine.add('Dive', Dive(ac_handler),
                                 transitions={'submerged':'Search', 'continue':'Dive','preempted':'Cancel'})
-        smach.StateMachine.add('Search', Search(ac_handler),
+        smach.StateMachine.add('Search', Search(ac_handler, waypoint_client, mode_pub_),
                                 transitions={'found':'Move', 'continue':'Search', 'preempted':'Cancel'})
         smach.StateMachine.add('Move', Move(),
                                 transitions={'stop_state_machine':'Done', 'move_finished':'Cancel', 'gate_lost':'Search', 'continue':'Move','preempted':'Cancel'})
