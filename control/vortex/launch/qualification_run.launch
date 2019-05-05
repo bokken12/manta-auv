@@ -3,4 +3,11 @@
   <include file="$(find control_input_merger)/launch/control_input_merger.launch"/>
   <include file="$(find vortex)/launch/dp_control.launch"/>
   <include file="$(find depth_hold_action_server)/launch/depth_hold_action_server.launch"/>
+  <include file="$(find robot_localization)/launch/ekf_test_dvl_imu.launch"/>
+  <!--include file="$(find thruster_interface)/launch/ordinary.launch"/-->
+  <include file="$(find mcu_interface)/launch/mcu_interface.launch"/>
+
+  <!--node pkg="mcu_interface"	type="mcu_interface_node"	name="mcu_interface"/>
+  <node pkg="thruster_interface"	type="thruster_interface_node.py"	name="thruster_interface"/-->
+
 </launch>
