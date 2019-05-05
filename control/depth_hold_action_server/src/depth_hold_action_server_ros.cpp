@@ -13,14 +13,14 @@ DepthHoldAction::DepthHoldAction(std::string name) :
     {
         as_.start();
 
-        sub_ = nh_.subscribe("/manta/pose_gt", 1, &DepthHoldAction::stateEstimateCallback, this);
+        sub_ = nh_.subscribe("/odometry/filtered", 1, &DepthHoldAction::stateEstimateCallback, this);
 
         pub_ = nh_.advertise<geometry_msgs::Wrench>("heave_input", 1);
         double dt = 0.1;
         double max = 40.0;
         double min = -40.0;
-        double K_p = 1.5;
-        double K_d = 0.13;
+        double K_p = 100;
+        double K_d = 1;
         double K_i = 0.05;
 
         height.reset(new DHpid(dt, max, min, K_p, K_d, K_i));
@@ -50,7 +50,7 @@ void DepthHoldAction::executeCB(const depth_hold_action_server::DepthHoldGoalCon
             as_.publishFeedback(feedback_);
             as_.setPreempted();
             success = false;
-            dh_command.force.z = 0;
+           dh_command.force.z = 0;
             pub_.publish(dh_command);
             break;
         }
@@ -73,15 +73,15 @@ void DepthHoldAction::executeCB(const depth_hold_action_server::DepthHoldGoalCon
 }
 
 void DepthHoldAction::stateEstimateCallback(const nav_msgs::Odometry &odometry_msgs){
-    feedback_.current_depth = odometry_msgs.pose.pose.position.z;
+    feedback_.current_depth = -1*odometry_msgs.pose.pose.position.z;
 
-    double error = static_cast<double>(odometry_msgs.pose.pose.position.z)*(-1) - this->goal_depth;
-    double limit = 0.1;
+    double error = static_cast<double>(odometry_msgs.pose.pose.position.z) - this->goal_depth;
+    double limit = 0.3;
     if( (error < limit) && (error > -1*limit) ){
-        //std::cout <<"Error true: "<<  error << std::endl;
+        std::cout <<"Error true: "<<  error << std::endl;
         feedback_.ready = true;
     }else{
-        //std::cout <<"Error false: "<<  error << std::endl;
+        std::cout <<"Error false: "<<  error << std::endl;
         feedback_.ready = false;
     }
 
