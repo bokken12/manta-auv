@@ -140,7 +140,7 @@ void Controller::stateCallback(const nav_msgs::Odometry &msg)
 {
 
   // Convert to eigen for computation
-  msg.pose.pose.position.x = -1*msg.pose.pose.position.x;
+  //msg.pose.pose.position.x =- msg.pose.pose.position.x;
   tf::pointMsgToEigen(msg.pose.pose.position, position);
   tf::quaternionMsgToEigen(msg.pose.pose.orientation, orientation);
   tf::twistMsgToEigen(msg.twist.twist, velocity);
