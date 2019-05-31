@@ -3,4 +3,6 @@
   <include file="$(find control_input_merger)/launch/control_input_merger.launch"/>
   <include file="$(find vortex)/launch/dp_control.launch"/>
   <include file="$(find depth_hold_action_server)/launch/depth_hold_action_server.launch"/>
+  <include file="$(find pitch_hold_action_server)/launch/pitch_hold_action_server.launch"/>
+  <include file="$(find navigation_launch)/launch/navigation.launch"/>
 </launch>
