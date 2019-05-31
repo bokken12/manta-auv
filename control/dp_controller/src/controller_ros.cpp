@@ -21,7 +21,7 @@ Controller::Controller(ros::NodeHandle nh) : m_nh(nh), m_frequency(10)
 {
   // Subscribers
   //m_command_sub = m_nh.subscribe("/manta/waypoints", 300, &Controller::waypointCallback, this);
-  m_state_sub = m_nh.subscribe("/manta/pose_gt", 1, &Controller::stateCallback, this);
+  m_state_sub = m_nh.subscribe("/odometry/filtered", 1, &Controller::stateCallback, this);
   m_mode_sub = m_nh.subscribe("/manta/mode", 1, &Controller::controlModeCallback, this);
 
   // Publishers
@@ -30,7 +30,7 @@ Controller::Controller(ros::NodeHandle nh) : m_nh(nh), m_frequency(10)
   m_debug_pub   = m_nh.advertise<vortex_msgs::Debug>("debug/controlstates", 10);
 
   // Initial control mode
-  m_control_mode = ControlModes::POSE_HOLD;
+  m_control_mode = ControlModes::OPEN_LOOP;
 
   // Launch file specifies manta.yaml as directory
   if (!m_nh.getParam("/controller/frequency", m_frequency))
@@ -140,6 +140,7 @@ void Controller::stateCallback(const nav_msgs::Odometry &msg)
 {
 
   // Convert to eigen for computation
+  msg.pose.pose.position.x = -1*msg.pose.pose.position.x;
   tf::pointMsgToEigen(msg.pose.pose.position, position);
   tf::quaternionMsgToEigen(msg.pose.pose.orientation, orientation);
   tf::twistMsgToEigen(msg.twist.twist, velocity);

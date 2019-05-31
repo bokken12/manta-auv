@@ -10,5 +10,5 @@
 
     </node>
     <include file="$(find vortex)/launch/qualification_run.launch"/>
-    <include file="$(find pole_detect)/launch/gate_detect.launch"/>
+    <include file="$(find mission_trigger)/launch/mission_trigger.launch"/>
 </launch>

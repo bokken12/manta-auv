@@ -72,10 +72,10 @@ class WaypointClient():
 
         # Append each of the four waypoints to the list. Each waypoint
         # is a pose consisting of a position and orientation in the map frame
-        self.waypoints.append(Pose(Point(35.0, 2.0, -1.0), quaternions[0]))
-        self.waypoints.append(Pose(Point(36.5, 0.0, -1.0), quaternions[1]))
-        self.waypoints.append(Pose(Point(35.0, -2.0, -1.0), quaternions[2]))
-        self.waypoints.append(Pose(Point(0.0, 0.0, -1.0), quaternions[3]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -0.3), quaternions[0]))
+        self.waypoints.append(Pose(Point(2.0, 0.0, -0.3), quaternions[1]))
+        self.waypoints.append(Pose(Point(2.0, 2.0, -0.3), quaternions[2]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -0.3), quaternions[3]))
 
         #Create action client
         self.client = actionlib.SimpleActionClient('move_base',MoveBaseAction)
@@ -270,7 +270,7 @@ class Dive(smach.State):
             return 'preempted'
 
         if self.ac_handler.depth_hold_ac.get_state() != 1:
-            goal_depth = DepthHoldGoal(depth = 1)
+            goal_depth = DepthHoldGoal(depth = -0.5)
             self.ac_handler.depth_hold_ac.send_goal(goal_depth)
             while(self.ac_handler.depth_hold_ac.get_state()!=1):
                 self.rate.sleep()
