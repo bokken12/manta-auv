@@ -14,6 +14,7 @@ from std_msgs.msg import Bool, String
 import actionlib
 from actionlib_msgs.msg import GoalStatus
 from depth_hold_action_server.msg import DepthHoldAction, DepthHoldGoal, DepthHoldActionFeedback
+from pitch_hold_action_server.msg import PitchHoldAction, PitchHoldGoal, PitchHoldActionFeedback
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 from geometry_msgs.msg import Pose, Point, Quaternion
 from tf.transformations import quaternion_from_euler
@@ -171,6 +172,7 @@ class WaypointClient():
 class AC_handler():
     def __init__(self):
         self.depth_hold_ac = self.action_client('depth_hold_action_server', DepthHoldAction)
+        self.pitch_hold_ac = self.action_client('pitch_hold_action_server', PitchHoldAction)
         self.dp_controller_ac = self.action_client('move_base', MoveBaseAction)
 
     def action_client(self, name, message_type):
@@ -180,6 +182,7 @@ class AC_handler():
 
     def cancel_all_goals(self):
         self.depth_hold_ac.cancel_all_goals()
+        self.pitch_hold_ac.cancel_all_goals()
         self.dp_controller_ac.cancel_all_goals()
 
 
@@ -267,9 +270,15 @@ class Dive(smach.State):
             return 'preempted'
 
         if self.ac_handler.depth_hold_ac.get_state() != 1:
-            goal = DepthHoldGoal(depth = 1)
-            self.ac_handler.depth_hold_ac.send_goal(goal)
+            goal_depth = DepthHoldGoal(depth = 1)
+            self.ac_handler.depth_hold_ac.send_goal(goal_depth)
             while(self.ac_handler.depth_hold_ac.get_state()!=1):
+                self.rate.sleep()
+
+        if self.ac_handler.pitch_hold_ac.get_state() != 1:
+            goal_pitch = PitchHoldGoal(pitch = 0)
+            self.ac_handler.pitch_hold_ac.send_goal(goal_pitch)
+            while(self.ac_handler.pitch_hold_ac.get_state()!=1):
                 self.rate.sleep()
 
         #self.rate.sleep()
