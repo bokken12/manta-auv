@@ -3,8 +3,10 @@
   <include file="$(find control_input_merger)/launch/control_input_merger.launch"/>
   <include file="$(find vortex)/launch/dp_control.launch"/>
   <include file="$(find depth_hold_action_server)/launch/depth_hold_action_server.launch"/>
+
   <include file="$(find robot_localization)/launch/ekf_all_sensors.launch"/>
   <!--include file="$(find navigation_launch)/launch/navigation.launch"/-->
+
   <!--include file="$(find thruster_interface)/launch/ordinary.launch"/-->
   <include file="$(find mcu_interface)/launch/mcu_interface.launch"/>
 

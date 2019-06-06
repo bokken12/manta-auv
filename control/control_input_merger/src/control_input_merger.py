@@ -44,11 +44,10 @@ class ControlInputMerger(object):
         self.motion_msg.torque.z = msg.torque.z
 
     def dp_callback(self, msg):
-        self.motion_msg.force.x = 0.5*msg.force.x
-        self.motion_msg.force.y = 0.5*msg.force.y
-        self.motion_msg.torque.x = msg.torque.x
-        self.motion_msg.torque.y = msg.torque.y
-        #self.motion_msg.torque.z = 0.05*msg.torque.z
+        #self.motion_msg.force.x = 0.5*msg.force.x
+        #self.motion_msg.force.y = 0.5*msg.force.y
+        #self.motion_msg.torque.x = msg.torque.x
+        #self.motion_msg.torque.y = msg.torque.y
 
     def publish(self):
         while not rospy.is_shutdown():
