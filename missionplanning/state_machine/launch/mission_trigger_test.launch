@@ -1,14 +1,14 @@
-<?xml version="1.0" encoding="UTF-8"?>
+i<?xml version="1.0" encoding="UTF-8"?>
 
 <launch>
-    <node
+    <!--node
     name="Mission_trigger_test"
     pkg="state_machine"
     type="mission_trigger_test.py"
     args=""
     output="screen">
 
-    </node>
-    <!--include file="$(find vortex)/launch/qualification_run.launch"/-->
+    </node-->
+    <include file="$(find vortex)/launch/qualification_run.launch"/>
     <!--include file="$(find pole_detect)/launch/gate_detect.launch"/-->
 </launch>

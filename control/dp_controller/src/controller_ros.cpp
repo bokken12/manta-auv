@@ -140,10 +140,11 @@ void Controller::stateCallback(const nav_msgs::Odometry &msg)
 {
 
   // Convert to eigen for computation
-  msg.pose.pose.position.x = -1*msg.pose.pose.position.x;
-  tf::pointMsgToEigen(msg.pose.pose.position, position);
-  tf::quaternionMsgToEigen(msg.pose.pose.orientation, orientation);
-  tf::twistMsgToEigen(msg.twist.twist, velocity);
+  nav_msgs::Odometry flip_x_msg = msg;
+  flip_x_msg.pose.pose.position.x = -1*flip_x_msg.pose.pose.position.x;
+  tf::pointMsgToEigen(flip_x_msg.pose.pose.position, position);
+  tf::quaternionMsgToEigen(flip_x_msg.pose.pose.orientation, orientation);
+  tf::twistMsgToEigen(flip_x_msg.twist.twist, velocity);
 
   bool orientation_invalid = (abs(orientation.norm() - 1) > c_max_quat_norm_deviation);
   if (isFucked(position) || isFucked(velocity) || orientation_invalid)

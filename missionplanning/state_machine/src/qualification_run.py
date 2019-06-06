@@ -15,10 +15,11 @@ import actionlib
 from actionlib_msgs.msg import GoalStatus
 from depth_hold_action_server.msg import DepthHoldAction, DepthHoldGoal, DepthHoldActionFeedback
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
-from geometry_msgs.msg import Pose, Point, Quaternion
+from geometry_msgs.msg import Pose, Point, Quaternion, Wrench, PoseWithCovarianceStamped
 from tf.transformations import quaternion_from_euler
 from math import radians, pi
 from vortex_msgs.msg import CameraObjectInfo
+from robot_localization.srv import SetPose
 #from vortex_msgs import Bouy_camera
 
 #fiks at cameranode er tilgjengelig for state machine
@@ -71,10 +72,14 @@ class WaypointClient():
 
         # Append each of the four waypoints to the list. Each waypoint
         # is a pose consisting of a position and orientation in the map frame
-        self.waypoints.append(Pose(Point(0.0, 0.0, -0.3), quaternions[0]))
-        self.waypoints.append(Pose(Point(2.0, 0.0, -0.3), quaternions[1]))
-        self.waypoints.append(Pose(Point(2.0, 2.0, -0.3), quaternions[2]))
-        self.waypoints.append(Pose(Point(0.0, 0.0, -0.3), quaternions[3]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -0.5), quaternions[0]))
+        self.waypoints.append(Pose(Point(3.0, 0.0, -0.5), quaternions[1]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -0.5), quaternions[2]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -0.5), quaternions[3]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -0.5), quaternions[3]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -0.5), quaternions[3]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -0.5), quaternions[3]))
+        self.waypoints.append(Pose(Point(0.0, 0.0, -2), quaternions[3]))
 
         #Create action client
         self.client = actionlib.SimpleActionClient('move_base',MoveBaseAction)
@@ -172,7 +177,6 @@ class AC_handler():
     def __init__(self):
         self.depth_hold_ac = self.action_client('depth_hold_action_server', DepthHoldAction)
         self.dp_controller_ac = self.action_client('move_base', MoveBaseAction)
-
     def action_client(self, name, message_type):
         client = actionlib.SimpleActionClient(name, message_type)
         client.wait_for_server()
@@ -186,6 +190,7 @@ class AC_handler():
 def mission_trigger_callback(trigger_signal):
     print('Received signal')
     global mission_in_progress
+    print(mission_in_progress)
     if(trigger_signal.data == True):
         mission_in_progress = not mission_in_progress
         print(mission_in_progress)
@@ -219,17 +224,27 @@ class Idle(smach.State):
             self.rate.sleep()
             return 'waiting'
         else:
+            rospy.wait_for_service("/set_pose")
+            try:
+                reset_odom_call = rospy.ServiceProxy("/set_pose",SetPose)
+                pose_msg = PoseWithCovarianceStamped()
+                #pose_msg.pose.pose.covariance = 
+                reset_odom_call(pose_msg)
+            except rospy.ServiceException, e:
+                print("Service failed: %s",e)
+
             self.arm_pub_.publish('ARM')
             print('Jumping')
             return 'doing'
 
 class Cancel(smach.State):
-    def __init__(self, ac_handler, waypoint_client, arm_pub_, mode_pub_):
+    def __init__(self, ac_handler, waypoint_client, arm_pub_, mode_pub_, cam_disarm_pub_):
         smach.State.__init__(self, outcomes=['canceld'])
         self.ac_handler = ac_handler
         self.waypoint_client = waypoint_client
         self.arm_pub_ = arm_pub_
         self.mode_pub_ = mode_pub_
+        self.cam_disarm_pub_ = cam_disarm_pub_
 
     def execute(self, userdata):
         #Kill all nodes
@@ -249,14 +264,16 @@ class Cancel(smach.State):
         self.mode_pub_.publish(mode_msg)
         global mission_in_progress
         mission_in_progress = False
+        self.cam_disarm_pub_.publish('Stop')
         return 'canceld'
 
 
 class Dive(smach.State):
-    def __init__(self, ac_handler):
+    def __init__(self, ac_handler, cam_arm_pub_):
         smach.State.__init__(self, outcomes=['submerged','continue','preempted'])
         print('Diving')
         self.ac_handler = ac_handler
+        self.cam_arm_pub_ = cam_arm_pub_
         self.rate = rospy.Rate(10)
         self.counter = 0
 
@@ -267,9 +284,10 @@ class Dive(smach.State):
             return 'preempted'
 
         if self.ac_handler.depth_hold_ac.get_state() != 1:
-            goal = DepthHoldGoal(depth = -0.5)
+            goal = DepthHoldGoal(depth = -0.2)
             self.ac_handler.depth_hold_ac.send_goal(goal)
-            while(self.ac_handler.depth_hold_ac.get_state()!=1):
+            self.cam_arm_pub_.publish('Start')
+            while(self.ac_handler.depth_hold_ac.get_state()!=1 and request_preempt() != True):
                 self.rate.sleep()
 
         #self.rate.sleep()
@@ -311,48 +329,53 @@ class Search(smach.State):
             goal.target_pose.pose.position.z = 0.0
             print(goal.target_pose.pose.position)
             self.ac_handler.dp_controller_ac.send_goal(goal)
-        '''
+        
         if self.first:
             self.first = False
-
+        '''
         mode_msg = PropulsionCommand()
         mode_msg.control_mode = [
             (False),
+            (False),
+            (False),
+            (False),
             (True),
-            (False),
-            (False),
-            (False),
             (False)
         ]
 
-        self.mode_pub_.publish(mode_msg)
-        self.waypoint_client.start()
+        #self.mode_pub_.publish(mode_msg)
+        if self.first:
+            #self.waypoint_client.start()
+            self.first = False
         global gate_conf
         #print(gate_conf)
         if gate_conf == 1:
             return 'found'
-        elif gate_conf == 0:
+        else:
             return 'continue'
 
 
 class Move(smach.State):
-    def __init__(self):
+    def __init__(self, surge_pub_):
         smach.State.__init__(self, outcomes=['stop_state_machine' ,'move_finished','gate_lost', 'continue','preempted'])
         self.counter = 0
         #self.camera = subscribe_to_camera()
         self.gate_found = 1#self.camera.conf
-
+        self.surge_pub_ = surge_pub_
+        self.surge_msg = Wrench()
 
     def execute(self, userdata):
         if request_preempt():
             return 'preempted'
         #Do driving motion here
+
         gate_passed = False
         gate_lost = False
-        self.counter += 1
+        #self.counter += 1
+        self.surge_msg.force.x = 5
+        self.surge_pub_.publish(self.surge_msg)
         if(self.counter > 100):
             gate_passed = True
-
         elif self.gate_found == 0.5:
             return 'move_finished'
         elif self.gate_found == 0:
@@ -381,8 +404,10 @@ def main():
 
     arm_pub_ = rospy.Publisher('/mcu_arm', String, queue_size=1)
 
-
+    cam_arm_pub_ = rospy.Publisher('/start_front_camera', String, queue_size=1)
+    cam_disarm_pub_ = rospy.Publisher('/stop_front_camera', String, queue_size=1)
     mode_pub_ = rospy.Publisher('/manta/mode', PropulsionCommand, queue_size=1)
+    surge_pub_ = rospy.Publisher('/surge_input', Wrench, queue_size=1)
     '''
     mode_msg = PropulsionCommand()
     mode_msg.control_mode = [
@@ -409,13 +434,13 @@ def main():
     with sm:
         smach.StateMachine.add('Idle', Idle(arm_pub_, mode_pub_),
                                 transitions={'doing':'Dive', 'waiting':'Idle'})
-        smach.StateMachine.add('Cancel', Cancel(ac_handler, waypoint_client, arm_pub_, mode_pub_),
+        smach.StateMachine.add('Cancel', Cancel(ac_handler, waypoint_client, arm_pub_, mode_pub_, cam_disarm_pub_),
                                 transitions={'canceld':'Idle'})
-        smach.StateMachine.add('Dive', Dive(ac_handler),
+        smach.StateMachine.add('Dive', Dive(ac_handler, cam_arm_pub_),
                                 transitions={'submerged':'Search', 'continue':'Dive','preempted':'Cancel'})
         smach.StateMachine.add('Search', Search(ac_handler, waypoint_client, mode_pub_),
                                 transitions={'found':'Move', 'continue':'Search', 'preempted':'Cancel'})
-        smach.StateMachine.add('Move', Move(),
+        smach.StateMachine.add('Move', Move(surge_pub_),
                                 transitions={'stop_state_machine':'Done', 'move_finished':'Cancel', 'gate_lost':'Search', 'continue':'Move','preempted':'Cancel'})
 
 

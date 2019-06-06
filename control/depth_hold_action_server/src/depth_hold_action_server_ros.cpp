@@ -21,7 +21,7 @@ DepthHoldAction::DepthHoldAction(std::string name) :
         double min = -40.0;
         double K_p = 100;
         double K_d = 1;
-        double K_i = 0.05;
+        double K_i = 0.00;
 
         height.reset(new DHpid(dt, max, min, K_p, K_d, K_i));
     }
@@ -78,10 +78,10 @@ void DepthHoldAction::stateEstimateCallback(const nav_msgs::Odometry &odometry_m
     double error = static_cast<double>(odometry_msgs.pose.pose.position.z) - this->goal_depth;
     double limit = 0.3;
     if( (error < limit) && (error > -1*limit) ){
-        std::cout <<"Error true: "<<  error << std::endl;
+        //std::cout <<"Error true: "<<  error << std::endl;
         feedback_.ready = true;
     }else{
-        std::cout <<"Error false: "<<  error << std::endl;
+        //std::cout <<"Error false: "<<  error << std::endl;
         feedback_.ready = false;
     }
 
