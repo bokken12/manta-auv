@@ -18,7 +18,7 @@ class Cam_pd:
 
         self.pre_error = 0
         self.cam_goal = 0.0
-
+        self.armed = False
         self.pi = math.pi
 
         self.heading_goal = 0
@@ -31,6 +31,13 @@ class Cam_pd:
         self.cam_goal_sub = rospy.Subscriber('/cam_center', Bool, self.set_cam_goal)
 
         self.r = rospy.Rate(10)
+        self.cam_arm_sub = rospy.Subscriber('/cam_arm', Bool, self.cam_arm)
+
+    def cam_arm(self, msg):
+        if msg.data:
+            self.armed = True
+        else:
+            self.armed = False
 
 
     def set_cam_goal(self, msg):
@@ -56,7 +63,7 @@ class Cam_pd:
         width = msg.frame_width
         #height = msg.frame_height
         pix_x = msg.pos_x
-        if msg.confidence > 0.4:
+        if msg.confidence > 0.4 and self.armed:
             error = width/2 - pix_x
             print(error)
             if error > 40:
