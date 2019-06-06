@@ -16,6 +16,9 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   nav_msgs
+  vortex
+  tf
+  eigen_conversions
 )
 find_package(Boost REQUIRED COMPONENTS system)
 
@@ -116,6 +119,9 @@ catkin_package(
   roscpp
   sensor_msgs
   std_msgs
+  vortex
+  tf
+  eigen_conversions
 #  DEPENDS system_lib
 )
 
@@ -127,6 +133,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include
+  ${EIGEN_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 #  ${Boost_INCLUDE_DIRS}
 )

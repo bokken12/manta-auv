@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<launch>
+    <node
+    name="cam_controller"
+    pkg="pitch_hold_action_server"
+    type="cam_hold.py"
+    args=""
+    output="screen">
+
+    </node>
+    <include file="$(find pitch_hold_action_server)/launch/yaw_hold.launch"/>
+
+</launch>
