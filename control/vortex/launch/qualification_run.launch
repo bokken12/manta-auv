@@ -10,6 +10,9 @@
   <!--include file="$(find thruster_interface)/launch/ordinary.launch"/-->
   <include file="$(find mcu_interface)/launch/mcu_interface.launch"/>
 
+  <include file="$(find pole_detect)/launch/gate_detect.launch"/>
+  <include file="$(find pitch_hold_action_server)/launch/cam_hold.launch"/>
+
   <!--node pkg="mcu_interface"	type="mcu_interface_node"	name="mcu_interface"/>
   <node pkg="thruster_interface"	type="thruster_interface_node.py"	name="thruster_interface"/-->
 

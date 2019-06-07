@@ -3,7 +3,7 @@ import rospy
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from geometry_msgs.msg import Wrench
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Bool
 import math
 
 
@@ -19,17 +19,28 @@ class Yaw_pd:
         self.yaw_goal = 0.0
 
         self.pi = math.pi
+        self.armed = False
 
         self.odom_sub = rospy.Subscriber('/odometry/filtered', Odometry, self.get_rotation)#('/odometry/filtered', Odometry, get_rotation)
         self.yaw_pub = rospy.Publisher('/yaw_input', Wrench, queue_size=1)
         self.yaw_goal_sub = rospy.Subscriber('/yaw_goal', Float64, self.set_yaw_goal)
 
+        self.yaw_arm = rospy.Subscriber('/yaw_arm', Bool, self.arm_callback)
+
+    def arm_callback(self,msg):
+        if msg.data:
+            self.armed = True
+        else:
+            self.armed = False
+
     def set_yaw_goal(self, msg):
         #print(msg)
+        '''
         if(msg.data > 179 ):
             msg.data -= 360
         elif(msg.data < -179):
             msg.data += 360
+        '''
         self.yaw_goal = self.pi*(msg.data)/180
 
     def get_yaw_input(self, error):
@@ -58,8 +69,17 @@ class Yaw_pd:
         #print('yaw: ', yaw)
 
         yaw_input = Wrench()
-        yaw_input.torque.z = self.get_yaw_input(yaw-self.yaw_goal)
-        self.yaw_pub.publish(yaw_input)
+        error = yaw-self.yaw_goal
+        if(error > 2*self.pi):
+            error -= 2*self.pi
+        elif(error < -2*self.pi):
+            error += 2*self.pi
+        yaw_input.torque.z = self.get_yaw_input(error)
+        if self.armed:
+            self.yaw_pub.publish(yaw_input)
+        else:
+            yaw_input.torque.z = 0
+            self.yaw_pub.publish(yaw_input)
 
     def main(self):
         r = rospy.Rate(1)

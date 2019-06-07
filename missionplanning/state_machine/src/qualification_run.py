@@ -9,7 +9,7 @@ import actionlib
 from vortex_msgs.msg import PropulsionCommand, Manipulator
 from sensor_msgs.msg import Joy
 import actionlib_tutorials.msg
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool, String, Float64
 
 import actionlib
 from actionlib_msgs.msg import GoalStatus
@@ -177,7 +177,7 @@ class WaypointClient():
 class AC_handler():
     def __init__(self):
         self.depth_hold_ac = self.action_client('depth_hold_action_server', DepthHoldAction)
-        self.pitch_hold_ac = self.action_client('pitch_hold_action_server', PitchHoldAction)
+        #self.pitch_hold_ac = self.action_client('pitch_hold_action_server', PitchHoldAction)
         self.dp_controller_ac = self.action_client('move_base', MoveBaseAction)
     def action_client(self, name, message_type):
         client = actionlib.SimpleActionClient(name, message_type)
@@ -186,7 +186,7 @@ class AC_handler():
 
     def cancel_all_goals(self):
         self.depth_hold_ac.cancel_all_goals()
-        self.pitch_hold_ac.cancel_all_goals()
+        #self.pitch_hold_ac.cancel_all_goals()
         self.dp_controller_ac.cancel_all_goals()
 
 
@@ -248,6 +248,8 @@ class Cancel(smach.State):
         self.arm_pub_ = arm_pub_
         self.mode_pub_ = mode_pub_
         self.cam_disarm_pub_ = cam_disarm_pub_
+        self.reset_merger_pub = rospy.Publisher('/reset_merger', Bool, queue_size=1)
+        self.stop_yaw_pub = rospy.Publisher('/yaw_arm', Bool, queue_size=1)
 
     def execute(self, userdata):
         #Kill all nodes
@@ -268,6 +270,9 @@ class Cancel(smach.State):
         global mission_in_progress
         mission_in_progress = False
         self.cam_disarm_pub_.publish('Stop')
+        self.stop_yaw_pub.publish(False)
+        self.reset_merger_pub.publish(True)
+
         return 'canceld'
 
 
@@ -279,6 +284,7 @@ class Dive(smach.State):
         self.cam_arm_pub_ = cam_arm_pub_
         self.rate = rospy.Rate(10)
         self.counter = 0
+        self.yaw_arm_pub = rospy.Publisher('/yaw_arm', Bool, queue_size=1)
 
 
     def execute(self, userdata):
@@ -287,17 +293,18 @@ class Dive(smach.State):
             return 'preempted'
 
         if self.ac_handler.depth_hold_ac.get_state() != 1:
-            goal = DepthHoldGoal(depth = -0.2)
+            goal = DepthHoldGoal(depth = -0.5)
             self.ac_handler.depth_hold_ac.send_goal(goal)
             self.cam_arm_pub_.publish('Start')
+            self.yaw_arm_pub.publish(True)
             while(self.ac_handler.depth_hold_ac.get_state()!=1 and request_preempt() != True): 
                 self.rate.sleep()
 
-        if self.ac_handler.pitch_hold_ac.get_state() != 1:
-            goal_pitch = PitchHoldGoal(pitch = 0)
-            self.ac_handler.pitch_hold_ac.send_goal(goal_pitch)
-            while(self.ac_handler.pitch_hold_ac.get_state()!=1):
-                self.rate.sleep()
+        #if self.ac_handler.pitch_hold_ac.get_state() != 1:
+            #goal_pitch = PitchHoldGoal(pitch = 0)
+            #self.ac_handler.pitch_hold_ac.send_goal(goal_pitch)
+            #while(self.ac_handler.pitch_hold_ac.get_state()!=1):
+            #   self.rate.sleep()
 
         #self.rate.sleep()
         global depth_hold_ready
@@ -320,6 +327,8 @@ class Search(smach.State):
         self.waypoint_client = waypoint_client
         self.mode_pub_ = mode_pub_
         self.first = True
+        self.yaw_goal_pub_ = rospy.Publisher('/yaw_goal', Float64, queue_size=1)
+        self.yaw_goal_msg = Float64()
         '''
         self.camera_sub = camera_sub
         self.gate_found = self.camera_sub.get_conf()
@@ -329,7 +338,7 @@ class Search(smach.State):
         if request_preempt():
             return 'preempted'
         #Do findGateStuff here
-        self.gate_found = False
+        self.gate_found = True
         '''
         if self.ac_handler.dp_controller_ac.get_state() != 1:
             goal = MoveBaseGoal()
@@ -358,31 +367,214 @@ class Search(smach.State):
             self.first = False
         global gate_conf
         #print(gate_conf)
-        if gate_conf == 1:
+        if True:#gate_found:#gate_conf == 1:
             return 'found'
+        elif gate_conf == 0:
+            self.yaw_goal_msg.data += 0.5
+            #self.yaw_goal_pub_.publish(self.yaw_goal_msg)
+            return 'continue'
         else:
             return 'continue'
 
 
 class Move(smach.State):
-    def __init__(self, surge_pub_):
+    def __init__(self):
         smach.State.__init__(self, outcomes=['stop_state_machine' ,'move_finished','gate_lost', 'continue','preempted'])
         self.counter = 0
         #self.camera = subscribe_to_camera()
         self.gate_found = 1#self.camera.conf
-        self.surge_pub_ = surge_pub_
-        self.surge_msg = Wrench()
+        #self.surge_pub_ = surge_pub_
+        self.surge_msg = Float64()
+        self.surge_arm_pub_ = rospy.Publisher('/surge_arm', Bool, queue_size=1)
+        self.surge_pub_ = rospy.Publisher('/surge_goal', Float64, queue_size=1)
+        self.first = True
+        self.surge_ready_sub = rospy.Subscriber('/surge_ready', Bool, self.surge_ready_callback)
+        self.surge_ready = True
+
+        self.sway_msg = Float64()
+        self.sway_arm_pub_ = rospy.Publisher('/sway_arm', Bool, queue_size=1)
+
+        self.sway_pub_ = rospy.Publisher('/sway_goal', Float64, queue_size=1)
+        self.first = True
+        self.sway_ready_sub = rospy.Subscriber('/sway_ready', Bool, self.sway_ready_callback)
+        self.sway_ready = True
+
+
+        self.yaw_goal_pub_ = rospy.Publisher('/yaw_goal', Float64, queue_size=1)
+        self.yaw_goal_msg = Float64()
+        self.which_point = -1
+
+        self.first_sent = False
+        self.second_sent = False
+        self.third_sent = False
+        self.fourth_sent = False
+        self.fifth_sent = False
+        self.sixth_sent = False
+        self.seventh_sent = False
+        self.eight_sent = False
+
+        self.move_rate = rospy.Rate(0.2)
+
+    def surge_ready_callback(self, msg):
+        self.surge_ready = msg.data
+
+    def sway_ready_callback(self, msg):
+        self.sway_ready = msg.data
+
 
     def execute(self, userdata):
         if request_preempt():
+            self.first_sent = False
+            self.second_sent = False
+            self.third_sent = False
+            self.fourth_sent = False
+            self.fifth_sent = False
+            self.sixth_sent = False
+            self.seventh_sent = False
+            self.eight_sent = False
+
             return 'preempted'
         #Do driving motion here
-
+        if self.first:
+            self.surge_arm_pub_.publish(True)
+            self.sway_arm_pub_.publish(True)
         gate_passed = False
         gate_lost = False
         #self.counter += 1
-        self.surge_msg.force.x = 5
-        self.surge_pub_.publish(self.surge_msg)
+        #self.surge_msg.force.x = 5
+        #self.surge_msg.data = 2.0
+        #self.surge_pub_.publish(self.surge_msg)
+
+        if(self.surge_ready):
+            #self.which_point += 1
+            if not (self.first_sent):
+                self.surge_msg.data = 12.0
+                self.surge_pub_.publish(self.surge_msg)
+                self.sway_msg.data = 0.0
+                self.sway_pub_.publish(self.sway_msg)
+
+                self.yaw_goal_msg.data = 0
+                self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+                #self.which_point += 1
+                self.first_sent = True
+                self.move_rate.sleep()
+                self.surge_ready = False
+                self.sway_ready = False
+
+                return 'continue'
+            if not(self.second_sent):
+                self.surge_msg.data = 14.0
+                self.surge_pub_.publish(self.surge_msg)
+                self.sway_msg.data = 1.0
+                self.sway_pub_.publish(self.sway_msg)
+                self.yaw_goal_msg.data = 0
+                self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+                #self.which_point += 1
+                self.second_sent = True
+                self.move_rate.sleep()
+                self.surge_ready = False
+                self.sway_ready = False
+
+                return 'continue'
+            if not(self.third_sent):
+                self.surge_msg.data = 15.0
+                self.surge_pub_.publish(self.surge_msg)
+                self.sway_msg.data = 0.0
+                self.sway_pub_.publish(self.sway_msg)
+                self.yaw_goal_msg.data = 0
+                self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+                #self.which_point += 1
+                self.third_sent = True
+                self.move_rate.sleep()
+                self.surge_ready = False
+                self.sway_ready = False
+                return 'continue'
+
+            if not(self.fourth_sent):
+                self.surge_msg.data = 14.0
+                self.surge_pub_.publish(self.surge_msg)
+                self.sway_msg.data = -1.0
+                self.sway_pub_.publish(self.sway_msg)
+                self.yaw_goal_msg.data = 0
+                self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+                #self.which_point += 1
+                self.fourth_sent = True
+                self.move_rate.sleep()
+                self.surge_ready = False
+                self.sway_ready = False
+                return 'continue'
+
+            if not(self.fifth_sent):
+                self.surge_msg.data = 12.0
+                self.surge_pub_.publish(self.surge_msg)
+                self.sway_msg.data = 0.0
+                self.sway_pub_.publish(self.sway_msg)
+                self.yaw_goal_msg.data = 0
+                self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+                #self.which_point += 1
+                self.fifth_sent = True
+                self.move_rate.sleep()
+                self.surge_ready = False
+                self.sway_ready = False
+                return 'continue'
+
+            if not(self.sixth_sent):
+                self.surge_msg.data = 9.0
+                self.surge_pub_.publish(self.surge_msg)
+                self.sway_msg.data = 0.0
+                self.sway_pub_.publish(self.sway_msg)
+                self.yaw_goal_msg.data = 0
+                self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+                #self.which_point += 1
+                self.sixth_sent = True
+                self.move_rate.sleep()
+                self.surge_ready = False
+                self.sway_ready = False
+                return 'continue'
+
+            if not(self.seventh_sent):
+                self.surge_msg.data = 0.0
+                self.surge_pub_.publish(self.surge_msg)
+                self.sway_msg.data = 0.0
+                self.sway_pub_.publish(self.sway_msg)
+                self.yaw_goal_msg.data = 0
+                self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+                #self.which_point += 1
+                self.seventh_sent = True
+                self.move_rate.sleep()
+                self.surge_ready = False
+                self.sway_ready = False
+                return 'continue'
+
+            if not(self.eigth_sent):
+                self.surge_msg.data = 0.0
+                self.surge_pub_.publish(self.surge_msg)
+                self.sway_msg.data = 0.0
+                self.sway_pub_.publish(self.sway_msg)
+                self.yaw_goal_msg.data = 0
+                self.yaw_goal_pub_.publish(self.yaw_goal_msg.data)
+                #self.which_point += 1
+                self.eigth_sent = True
+                self.move_rate.sleep()
+                self.surge_ready = False
+                self.sway_ready = False
+
+                self.first_sent = False
+                self.second_sent = False
+                self.third_sent = False
+                self.fourth_sent = False
+                self.fifth_sent = False
+                self.sixth_sent = False
+                self.seventh_sent = False
+                self.eight_sent = False
+
+                return 'canceled'
+
+
+            return 'continue'
+        else:
+            return'continue'
+        ''''
         if(self.counter > 100):
             gate_passed = True
         elif self.gate_found == 0.5:
@@ -391,7 +583,7 @@ class Move(smach.State):
             return 'gate_lost'
         else:
             return 'continue'
-
+        '''
 
 
 def main():
@@ -416,7 +608,7 @@ def main():
     cam_arm_pub_ = rospy.Publisher('/start_front_camera', String, queue_size=1)
     cam_disarm_pub_ = rospy.Publisher('/stop_front_camera', String, queue_size=1)
     mode_pub_ = rospy.Publisher('/manta/mode', PropulsionCommand, queue_size=1)
-    surge_pub_ = rospy.Publisher('/surge_input', Wrench, queue_size=1)
+
     '''
     mode_msg = PropulsionCommand()
     mode_msg.control_mode = [
@@ -449,7 +641,7 @@ def main():
                                 transitions={'submerged':'Search', 'continue':'Dive','preempted':'Cancel'})
         smach.StateMachine.add('Search', Search(ac_handler, waypoint_client, mode_pub_),
                                 transitions={'found':'Move', 'continue':'Search', 'preempted':'Cancel'})
-        smach.StateMachine.add('Move', Move(surge_pub_),
+        smach.StateMachine.add('Move', Move(),
                                 transitions={'stop_state_machine':'Done', 'move_finished':'Cancel', 'gate_lost':'Search', 'continue':'Move','preempted':'Cancel'})
 
 

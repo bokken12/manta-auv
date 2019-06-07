@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<launch>
+    <node
+    name="sway_controller"
+    pkg="pitch_hold_action_server"
+    type="sway_hold.py"
+    args=""
+    output="screen">
+
+    </node>
+</launch>

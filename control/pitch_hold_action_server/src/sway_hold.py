@@ -7,7 +7,7 @@ from std_msgs.msg import Float64, Bool
 import math
 
 
-class Surge_pd:
+class Sway_pd:
     def __init__(self):
         self.K_p = 10
         self.K_d = 3
@@ -16,28 +16,28 @@ class Surge_pd:
         self.min = -10
 
         self.pre_error = 0
-        self.surge_goal = 0.0
+        self.sway_goal = 0.0
         self.armed = False
         self.pi = math.pi
 
         self.odom_sub = rospy.Subscriber('/odometry/filtered', Odometry, self.get_rotation)#('/odometry/filtered', Odometry, get_rotation)
-        self.surge_pub = rospy.Publisher('/surge_input', Wrench, queue_size=1)
-        self.surge_goal_sub = rospy.Subscriber('/surge_goal', Float64, self.set_surge_goal)
-        self.surge_arm_sub = rospy.Subscriber('/surge_arm', Bool, self.surge_arm)
-        self.surge_ready_pub = rospy.Publisher('/surge_ready', Bool, queue_size=1)
+        self.sway_pub = rospy.Publisher('/sway_input', Wrench, queue_size=1)
+        self.sway_goal_sub = rospy.Subscriber('/sway_goal', Float64, self.set_sway_goal)
+        self.sway_arm_sub = rospy.Subscriber('/sway_arm', Bool, self.sway_arm)
+        self.sway_ready_pub = rospy.Publisher('/sway_ready', Bool, queue_size=1)
         self.ready = False
-    def surge_arm(self, msg):
+    def sway_arm(self, msg):
         if msg.data:
             self.armed = True
         else:
             self.armed = False
 
-    def set_surge_goal(self, msg):
+    def set_sway_goal(self, msg):
         #print(msg)
-        self.surge_goal = msg.data
+        self.sway_goal = msg.data
         self.ready = False
 
-    def get_surge_input(self, error):
+    def get_sway_input(self, error):
         P = self.K_p*error
 
         derivative = (error - self.pre_error)/self.dt
@@ -53,23 +53,24 @@ class Surge_pd:
         return sum
 
 
+
     def get_rotation (self, msg):
-        #global roll, pitch, surge
+        #global roll, pitch, sway
         #orientation_q = msg.pose.pose.orientation
         #orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        #(roll, pitch, surge) = euler_from_quaternion(orientation_list)
+        #(roll, pitch, sway) = euler_from_quaternion(orientation_list)
         #print('roll: ', roll)
         #print('pitch: ', pitch)
-        #print('surge: ', surge)
-        surge = msg.pose.pose.position.x
+        #print('sway: ', sway)
+        sway = msg.pose.pose.position.x
         sway = msg.pose.pose.position.y
         if self.armed:
-            surge_input = Wrench()
-            #collected = math.sqrt(surge*surge + sway*sway)
-            error = self.surge_goal+surge
-            
-            surge_input.force.x = self.get_surge_input(error)
-            self.surge_pub.publish(surge_input)
+            sway_input = Wrench()
+            #collected = math.sqrt(sway*sway + sway*sway)
+            error = self.sway_goal-sway
+
+            sway_input.force.y = self.get_sway_input(error)
+            self.sway_pub.publish(sway_input)
             if abs(error) < 0.3:
                 self.ready = True
             else:
@@ -78,12 +79,13 @@ class Surge_pd:
     def main(self):
         r = rospy.Rate(1)
         while not rospy.is_shutdown():
-            self.surge_ready_pub.publish(self.ready)
+            self.sway_ready_pub.publish(self.ready)
             r.sleep()
 
 
 
 if __name__ == '__main__':
-    rospy.init_node('surge_controller')
-    surge_pd = Surge_pd()
-    surge_pd.main()
+    rospy.init_node('sway_controller')
+    sway_pd = Sway_pd()
+    sway_pd.main()
+

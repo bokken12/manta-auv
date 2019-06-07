@@ -2,7 +2,7 @@
 import rospy
 from geometry_msgs.msg import Wrench
 from vortex_msgs.msg import PropulsionCommand
-
+from std_msgs.msg import Bool
 class ControlInputMerger(object):
     def __init__(self):
         rospy.init_node('control_input_merger_node')
@@ -15,7 +15,9 @@ class ControlInputMerger(object):
         self.sub_roll = rospy.Subscriber('roll_input',Wrench, self.roll_callback, queue_size=1)
         self.sub_pitch = rospy.Subscriber('pitch_input',Wrench, self.pitch_callback, queue_size=1)
         self.sub_yaw = rospy.Subscriber('yaw_input',Wrench, self.yaw_callback, queue_size=1)
-        self.sub_dp_controller = rospy.Subscriber('dp_input', Wrench, self.dp_callback, queue_size=1)
+        #self.sub_dp_controller = rospy.Subscriber('dp_input', Wrench, self.dp_callback, queue_size=1)
+
+        self.sub_reset = rospy.Subscriber('reset_merger', Bool, self.reset, queue_size=1) 
 
         #Publisher node
         self.pub_thrust = rospy.Publisher('/manta/thruster_manager/input', Wrench, queue_size=1)
@@ -24,6 +26,9 @@ class ControlInputMerger(object):
         #Initialize thrust publisher message
         self.motion_msg = Wrench()
 
+    def reset(self, msg):
+        if msg.data:
+            self.motion_msg = Wrench()
     #Callback
     def surge_callback(self, msg):
         self.motion_msg.force.x = msg.force.x
@@ -43,7 +48,7 @@ class ControlInputMerger(object):
     def yaw_callback(self, msg):
         self.motion_msg.torque.z = msg.torque.z
 
-    def dp_callback(self, msg):
+    #def dp_callback(self, msg):
         #self.motion_msg.force.x = 0.5*msg.force.x
         #self.motion_msg.force.y = 0.5*msg.force.y
         #self.motion_msg.torque.x = msg.torque.x
