@@ -9,8 +9,8 @@ import math
 
 class Sway_pd:
     def __init__(self):
-        self.K_p = 30
-        self.K_d = 13
+        self.K_p = 15
+        self.K_d = 8
         self.dt = 0.1
         self.max = 20
         self.min = -20
