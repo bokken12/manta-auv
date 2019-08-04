@@ -7,7 +7,11 @@
     type="competition_sm.py"
     args=""
     output="screen">
-
+    </node>
+    <node
+    name="manta_logger"
+    pkg="manta_pinger"
+    type="pinger.py">
     </node>
     <include file="$(find vortex)/launch/qualification_run.launch"/>
     <include file="$(find mission_trigger)/launch/mission_trigger.launch"/>
