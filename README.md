@@ -39,7 +39,7 @@ Robot operating system (ROS) provides services designed for heterogeneous comput
 	```bash
 	$ sudo rosdep init
 	$ rosdep update
-  
+  	```
 
 6. Environment setup:
 	```bash
@@ -55,18 +55,14 @@ Robot operating system (ROS) provides services designed for heterogeneous comput
   
 2. Install tf. tf is a package that lets the user keep track of multiple coordinate frames over time:
 	```bash
-	$ sudo apt-get install ros-kinetic-message-to-tf
+	$ sudo apt-get install ros-melodic-geographic-msgs
 
-3. Install tf. tf is a package that lets the user keep track of multiple coordinate frames over time:
+3. Install move-base-msgs. This is necessary to perform some actions:
 	```bash
-	$ sudo apt-get install ros-kinetic-geographic-msgs
+	$ sudo apt-get install ros-melodic-move-base
+	$ sudo apt-get install ros-melodic-move-base-msgs 
 
-4. Install move-base-msgs. This is necessary to perform some actions:
-	```bash
-	$ sudo apt-get install ros-kinetic-move-base
-	$ sudo apt-get install ros-kinetic-move-base-msgs 
-
-## 3. Now that you have ROS Kinetic installed. Create ROS workspace ##
+## 3. Now that you have ROS Melodic installed. Create ROS workspace ##
 ###### This is necessary to be able to run the simulation package that I have created
 -------------------------
 
@@ -81,19 +77,19 @@ Robot operating system (ROS) provides services designed for heterogeneous comput
 	$ cd ~/manta_ws/
 	$ catkin build
   
-3. source the current workspace and Gazebo model:
+3. source the current workspace and Gazebo model (replace YOUR_USER):
 	```bash
 	$ echo "source manta_ws/devel/setup.bash" >> ~/.bashrc
-	$ echo "export GAZEBO_MODEL_PATH=/home/youruser/manta_ws/src/manta_gazebo:$GAZEBO_MODEL_PATH" >> ~/.bashrc 
-	$ echo "export ROS_PACKAGE_PATH=/home/youruser/manta_ws:$ROS_PACKAGE_PATH" >> ~/.bashrc
+	$ echo "export GAZEBO_MODEL_PATH=/home/YOUR_USER/manta_ws/src/manta_gazebo:$GAZEBO_MODEL_PATH" >> ~/.bashrc 
+	$ echo "export ROS_PACKAGE_PATH=/home/YOUR_USER/manta_ws:$ROS_PACKAGE_PATH" >> ~/.bashrc
 
 	
 3. close the current window.
 
-4. Open a new window. To make sure the workspace is properly overlayed:
+4. Open a new window. To make sure the workspace is properly overlayed run the following command and check that the output matches the next line:
 	```bash
 	$ echo $ROS_PACKAGE_PATH
-	  /home/youruser/manta_ws/src:/opt/ros/kinetic/share 
+	  /home/YOUR_USER/manta_ws:/opt/ros/melodic/share 
 
 
 ## 4. How to run the simulation ##
@@ -103,30 +99,40 @@ Robot operating system (ROS) provides services designed for heterogeneous comput
 	$ cd manta_ws/src
 	```
 
-2. Clone the repository: 
+2. Clone the repositories: 
 	```bash
-	$  git clone https://github.com/vortexntnu/Manta-AUV.git
+	$ git clone https://github.com/vortexntnu/Manta-AUV.git
+	$ git clone https://github.com/vortexntnu/uuv-simulator.git
+	$ git clone https://github.com/vortexntnu/vortex_msgs.git
 	```
 Ps. You can also manually download the zip-folder in the up-right corner and extract the file <br />
 inside the src-folder of you workspace
 
-3. Compile the code by running "catkin build" inside the workspace:
+3. Additionally install message_to_tf from hector_localization:
+	```bash
+	$ cd ~/Downloads
+	$ git clone https://github.com/tu-darmstadt-ros-pkg/hector_localization.git
+	$ mv hector_localization/message_to_tf ~/manta_ws/src/message_to_tf
+	```
+
+4. Compile the code by running "catkin build" inside the workspace:
 	```bash
 	$ cd ~/manta_ws/
 	$ catkin build vortex_msgs
 	$ catkin build
   
-4. Open a window and run Gazebo world, spawn Manta, thruster manager and navigation by executing: 
+5. Open a window and run Gazebo world, spawn Manta, thruster manager and navigation by executing: 
 	```bash
-	$ roslaunch roslaunch simulator_launch robosub.launch 
+	$ source ~/manta_ws/devel/setup.bash
+	$ roslaunch simulator_launch robosub.launch 
 	```
 
-5. Open a second window and run dp-controller:
+6. Open a second window and run dp-controller:
 	```bash
 	$ roslaunch vortex dp_control.launch 
 	```
   
-6. Open a third window and launch the path generator client.
+7. Open a third window and launch the path generator client (this is not necessary for now).
 	```bash
 	$ roslaunch waypoint_action_client send_waypoints_file.launch
 	```
