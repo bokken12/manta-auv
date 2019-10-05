@@ -66,27 +66,31 @@ Robot operating system (ROS) provides services designed for heterogeneous comput
 ###### This is necessary to be able to run the simulation package that I have created
 -------------------------
 
-1. creating a catkin workspace:
+1. installing catkin tools:
+	```bash
+	$ sudo apt install python-catkin-tools
+
+2. creating a catkin workspace:
 	```bash
 	$ mkdir -p ~/manta_ws/src
 	$ cd ~/manta_ws/src
 	$ catkin_init_workspace
   
-2. building the workspace created:
+3. building the workspace created:
 	```bash
 	$ cd ~/manta_ws/
 	$ catkin build
   
-3. source the current workspace and Gazebo model (replace YOUR_USER):
+4. source the current workspace and Gazebo model (replace YOUR_USER):
 	```bash
 	$ echo "source manta_ws/devel/setup.bash" >> ~/.bashrc
 	$ echo "export GAZEBO_MODEL_PATH=/home/YOUR_USER/manta_ws/src/manta_gazebo:$GAZEBO_MODEL_PATH" >> ~/.bashrc 
 	$ echo "export ROS_PACKAGE_PATH=/home/YOUR_USER/manta_ws:$ROS_PACKAGE_PATH" >> ~/.bashrc
 
 	
-3. close the current window.
+5. close the current window.
 
-4. Open a new window. To make sure the workspace is properly overlayed run the following command and check that the output matches the next line:
+6. Open a new window. To make sure the workspace is properly overlayed run the following command and check that the output matches the next line:
 	```bash
 	$ echo $ROS_PACKAGE_PATH
 	  /home/YOUR_USER/manta_ws:/opt/ros/melodic/share 
